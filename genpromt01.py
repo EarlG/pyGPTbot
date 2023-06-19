@@ -5,7 +5,7 @@ def query_chatgpt(query):
     # query = 'Напиши еще крутой prompt для генерации изображений нейронной сетью ChatGPT, не повторяя предыдущие, - то о чем ты мечтаешь?'
 
     url = "https://api.openai.com/v1/chat/completions"
-    openai_api_key = "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"
+    openai_api_key = "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"
 
     # Заголовки запроса
     headers = {

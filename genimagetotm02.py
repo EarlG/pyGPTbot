@@ -3,13 +3,14 @@ import telebot
 from PIL import Image
 import io
 
-
+openai_api_key = "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"
 def query_chatgpt(query):
     # URL HTTP-интерфейса ChatGPT
     # query = 'Напиши еще крутой prompt для генерации изображений нейронной сетью ChatGPT, не повторяя предыдущие, - то о чем ты мечтаешь?'
 
     url = "https://api.openai.com/v1/chat/completions"
-    openai_api_key = "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"
+    # openai_api_key = "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"
+    openai_api_key = "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"
 
     # Заголовки запроса
     headers = {
@@ -67,7 +68,8 @@ def upload_photo_to_channel(url, caption, bot_token, channel_id):
 
 
 # Установите ключ API OpenAI
-openai_api_key = "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"
+# openai_api_key = "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"
+openai_api_key = "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"
 
 
 def generate_image(description):
@@ -109,11 +111,11 @@ def generate_image(description):
 def gen_img_to_tm():
     # prompt_text = 'Break the composition of [супереалистичных пятимерных изображений] photography into key elements and write them separated by commas, without explanation. Make near 10 key elements'
     description = query_chatgpt(
-        'Напиши еще самый необыкновенный и потрясающий prompt из 36 слов для генерации супереалистичных пятимерных изображений, не повторяя предыдущие')
+        'Напиши еще самый необыкновенный и потрясающий prompt из 36 слов для генерации реалистичных пятимерных изображений человека, не повторяя предыдущие')
 
     # description = query_chatgpt(prompt_text)
     img_url = generate_image(
-        description + ', Supreme realism, five dimensions, imaging technology, multi-perspective rendering, advanced lighting techniques, high-resolution graphics, digital manipulation, hyper-realistic details, creative vision, artistic expression')
+        description + ',powerful hypnotic suggestion of eloquence, Supreme realism, five dimensions, imaging technology, multi-perspective rendering, advanced lighting techniques, high-resolution graphics, digital manipulation, hyper-realistic details, creative vision')
     # Токен вашего бота Telegram
     bot_token = '6200473625:AAHQggdvC2pXpATubj8COR7ogmP_y5-GRBc'
     # ID канала, в который будет отправлено изображение
