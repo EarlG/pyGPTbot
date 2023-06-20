@@ -1,129 +1,181 @@
-# import pip
-# pip.main(['install', 'pytelegrambotapi'])
-# pip.main(['install', 'openai'])
-# from pyowm.utils import config
-# from pyowm.utils import timestamps
-
-from webserver import keep_alive
-import os
 import telebot
-from telebot import types
+import requests
+from genchatgpt import query_chatgpt
+from genchatgpt import generate_image
+from getweather import get_weather
+from webserver import keep_alive
+from datetime import datetime
+import os
+
 from pyowm import OWM
-import openai
-from aichat import openai_chat
 import time
+import io
+from gtts import gTTS
+
+bot_token = '6200473625:AAHQggdvC2pXpATubj8COR7ogmP_y5-GRBc'
+bot = telebot.TeleBot(bot_token)
 
 
-def limit_function_calls(func, n_max=10, t_period=3600):
-    count = 0
-    last_call_time = 0
+def bot_log(message):
+    bot_log_id = "-997031056"
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    user_id = message.from_user.id
+    user_name = message.from_user.username
+    text = message.text
+    bot.send_message(bot_log_id, f"{current_time}\nUser ID: {user_id} - {user_name}\n{text}")
 
-    def wrapper(*args, **kwargs):
-        nonlocal count, last_call_time
+def bot_log_text(text):
+    bot_log_id = "-997031056"
+    bot.send_message(bot_log_id, text)
 
-        current_time = time.time()
-        elapsed_time = current_time - last_call_time
+# Your user ID: 5031535279
+# Current chat ID: -997031056
 
-        if count >= n_max and elapsed_time < t_period:
-            print("Превышен лимит вызовов функции.")
-        else:
-            func(*args, **kwargs)
-            count += 1
-            last_call_time = current_time
+# Установите ключ API OpenAI
+openai_api_key = "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"
 
-    return wrapper
+# Словарь для хранения текущего режима диалога для каждого пользователя
+dialog_mode = {}
 
 
-os.environ['OPENAI_KEY'] = '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'
-os.environ['TELE_TOKEN1'] = '6200473625:AAHQggdvC2pXpATubj8COR7ogmP_y5-GRBc'
-os.environ['OWM_TOKEN'] = 'f70b2868746d0a1f0c27740e7031549a'
+# Функция для отправки сообщения ChatGPT и получения ответа
+def send_message_to_chatgpt(message):
+    return query_chatgpt(message)
 
-openai.api_key = os.environ['OPENAI_KEY']
-my_bot_secret = os.environ['TELE_TOKEN1']
-my_owm_secret = os.environ['OWM_TOKEN']
 
-owm = OWM(my_owm_secret)
-mgr = owm.weather_manager()
+def weather_handler(message):
+    city = message.text
+    # Здесь выполняется запрос к веб-сервису погоды
+    # Получаем данные погоды
+    weather_data = get_weather_data(city)
+    bot.send_message(message.chat.id, f"Данные погоды для города {city}:\n{weather_data}")
+    # Запрашиваем название другого города
+    bot.send_message(message.chat.id, "Введите название другого города:")
 
-# Инициализация бота
-bot = telebot.TeleBot(my_bot_secret)
 
-bot_mode = 'погода'
+def image_handler(message):
+    url = message.text
+    # Загружаем рисунок по URL и публикуем его в заданном канале
+    image_url = upload_image_to_channel(url)
+    # Отправляем ссылку на рисунок в чат
+    bot.send_message(message.chat.id, f"Рисунок опубликован в канале: {image_url}")
+
+
+# функция генерации аудио из текста
+import io
+import pydub
+from gtts import gTTS
+from telebot import types
+
+
+def generate_audio(chat_id, text):
+    try:
+        tts = gTTS(text=text, lang='ru')
+        with io.BytesIO() as f:  # use a memory stream
+            tts.write_to_fp(f)
+            # tts.save(f)
+            f.seek(0)
+            bot.send_audio(chat_id, f)
+    except Exception as e:
+        bot.send_message(chat_id, "Ошибка при генерации аудио")
+
+
+def audio_handler(message):
+    text = message.text
+    generate_audio(message.chat.id, text)
 
 
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
-def handle_start(message):
-    markup = types.ReplyKeyboardMarkup(row_width=2)  # Создаем меню с кнопками
-    buttons = ['?', 'погода', 'рисунок', 'chat', 'budget']
-    markup.add(*[types.KeyboardButton(button) for button in buttons])
+def start(message):
+    keyboard = telebot.types.ReplyKeyboardMarkup(row_width=2)
+    buttons = [telebot.types.KeyboardButton(text='погода'),
+               telebot.types.KeyboardButton(text='рисунок'),
+               telebot.types.KeyboardButton(text='чат'),
+               telebot.types.KeyboardButton(text='аудио')]
+    keyboard.add(*buttons)
+    bot.send_message(message.chat.id, 'Выберите пункт меню:', reply_markup=keyboard)
 
-    bot.reply_to(message, 'Привет! Выберите опцию:', reply_markup=markup)
+
+# Обработчик кнопки "погода"
+@bot.message_handler(func=lambda message: message.text.lower() == 'погода')
+def weather(message):
+    bot.send_message(message.chat.id, 'Введите название города:')
+    dialog_mode[message.chat.id] = 'weather'
 
 
-# Обработчик нажатия на кнопку
+# Обработчик кнопки "рисунок"
+@bot.message_handler(func=lambda message: message.text.lower() == 'рисунок')
+def picture(message):
+    bot.send_message(message.chat.id, 'Чей рисунок вы хотели бы увидеть?')
+    dialog_mode[message.chat.id] = 'picture'
+
+
+# Обработчик кнопки "чат"
+@bot.message_handler(func=lambda message: message.text.lower() == 'чат')
+def chat(message):
+    bot.send_message(message.chat.id, 'Начинаем чат-диалог. Введите сообщение:')
+    dialog_mode[message.chat.id] = 'chat'
+
+
+# Обработчик кнопки "аудио"
+@bot.message_handler(func=lambda message: message.text.lower() == 'аудио')
+def audio(message):
+    bot.send_message(message.chat.id, 'Введите текст для преобразования в аудио:')
+    dialog_mode[message.chat.id] = 'audio'
+
+
+# Обработчик текстовых сообщений
 @bot.message_handler(func=lambda message: True)
-def handle_button_click(message):
-    global bot_mode
-    button_text = message.text.lower()
-    bot_mode = button_text
-    if button_text == '?':
-        bot.reply_to(message, 'Вы выбрали знак вопроса.')
-        return
-    elif button_text == 'погода':
-        bot_mode = 'погода'
-        bot.reply_to(message, 'Вы выбрали опцию "погода".')
-        return
-    elif button_text == 'рисунок':
-        bot.reply_to(message, 'Вы выбрали опцию "рисунок".')
-        return
-    elif button_text == 'chat':
-        bot.reply_to(message, 'Вы выбрали опцию "chat".')
-        return
-    elif button_text == 'budget':
-        bot.reply_to(message, 'Вы выбрали опцию "budget".')
-        return 
+def handle_text(message):
+    bot_log(message)  # логирование
+    chat_id = message.chat.id
+    text = message.text.lower()
+    if chat_id in dialog_mode:
+        mode = dialog_mode[chat_id]
+        if mode == 'weather':
+            # Обработка сообщений пользователя в режиме "погода"
+            # Ваш код здесь
+            bot.send_message(chat_id, f"Вы выбрали режим 'погода'. Введенный город: {text}")
+            bot.send_message(chat_id, get_weather(text))
+        elif mode == 'picture':
+            # Обработка сообщений пользователя в режиме "рисунок"
+            # Ваш код здесь
+            prompt_text = 'Напиши еще самый необыкновенный и потрясающий prompt из 36 слов для' \
+                          ' генерации супереалистичных многомерных изображений сна ' + text + ', не повторяя предыдущие'
+            # bot.send_message(chat_id, prompt_text)
+            image_description = query_chatgpt(prompt_text)
+            image_prompt = 'Dream of ' + text + '. ' + image_description + \
+                           ' (Supreme realism, five dimensions, ' \
+                           'imaging technology, multi-perspective rendering, advanced lighting techniques, ' \
+                           'high-resolution graphics, digital manipulation, hyper-realistic details, creative' \
+                           ' vision, artistic expression)'
+            img_url = generate_image(image_prompt)
+            response = requests.get(img_url)
+            if response.status_code == 200:
+                photo = response.content
+            else:
+                bot.send_message(chat_id, "Ошибка при загрузке изображения.")
 
-    # @bot.message_handler(content_types=['text'])
-    # def send_echo(message):
-    #     global bot_mode
-    if bot_mode == '?':
-        bot.reply_to(message, 'Вы выбрали знак вопроса.')
-    elif bot_mode == 'погода':
-        place = message.text
-        try:
-            # Search for current weather in London (Great Britain) and get details
-            observation = mgr.weather_at_place(place)
-            w = observation.weather
-            temp = w.temperature('celsius')["temp"]
+            # Отправка изображения в канал Telegram
+            photo_message = bot.send_photo(chat_id, photo, caption=image_description)
 
-            answer = "In " + place + ": "
-            answer += str(temp)
-            answer += "C " + w.detailed_status
-        except Exception:
-            answer = 'Location is not defined. Write the name of the city...'
-    elif bot_mode == 'рисунок':
-        bot.reply_to(message, 'Вы выбрали опцию "рисунок".')
-    elif bot_mode == 'chat':
-        prompt = message.text
-        try:
-            answer = openai_chat(prompt)
-        except Exception:
-            answer = 'Chat error...'
-    elif bot_mode == 'budget':
-        bot.reply_to(message, 'Вы выбрали опцию "budget".')
+            channel_id = "-1001910709745"
+            photo_message = bot.send_photo(channel_id, photo, caption=image_description)
+            bot_log_text(image_prompt)
 
-    # Задаем текст, который нужно отправить
-    long_text = answer + "\nEOF"
-
-    # здесь нужно указать ваш текст
-
-    # Разбиваем текст на части по 4096 символов
-    text_parts = [long_text[i:i + 4096] for i in range(0, len(long_text), 4096)]
-
-    # Отправляем каждую часть текста по очереди
-    for part in text_parts:
-        bot.send_message(message.chat.id, part)
+        elif mode == 'chat':
+            # Обработка сообщений пользователя в режиме "чат"
+            # Ваш код здесь
+            response = send_message_to_chatgpt(text)
+            bot.send_message(chat_id, response)
+        elif mode == 'audio':
+            # Обработка сообщений пользователя в режиме "аудио"
+            # Ваш код здесь
+            # bot.send_message(chat_id, f"Вы выбрали режим 'аудио'")
+            generate_audio(chat_id, text)
+    else:
+        bot.send_message(chat_id, 'Неверный выбор. Пожалуйста, выберите пункт меню.')
 
 
 # запускаем flask-сервер в отдельном потоке.
