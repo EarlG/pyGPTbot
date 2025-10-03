@@ -90,8 +90,8 @@ def audio_handler(message):
 def start(message):
     keyboard = telebot.types.ReplyKeyboardMarkup(row_width=2)
     buttons = [telebot.types.KeyboardButton(text='погода'),
-               telebot.types.KeyboardButton(text='рисунок'),
-               telebot.types.KeyboardButton(text='чат'),
+         #      telebot.types.KeyboardButton(text='рисунок'),
+         #      telebot.types.KeyboardButton(text='чат'),
                telebot.types.KeyboardButton(text='аудио')]
     keyboard.add(*buttons)
     bot.send_message(message.chat.id, 'Выберите пункт меню:', reply_markup=keyboard)
