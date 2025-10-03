@@ -3,3 +3,4 @@ requests
 pyTelegramBotAPI
 pyowm
 gTTS
+pydub
